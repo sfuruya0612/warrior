@@ -21,6 +21,7 @@
 別のアカウントに切り替えたときは、前の利用者の端末トークンを破棄する。
 サーバーは端末トークンの SHA-256 のハッシュを D1 に保存し、書き込みのたびに照合する。
 端末トークンは HttpOnly、Secure、SameSite=Lax の Cookie で送る。
+ただし、ローカル開発の `http://localhost` では Safari が Secure の Cookie を保存しないため、`ORIGIN` が HTTP のときは Secure を付けない。本番の HTTPS では必ず付ける。
 API の応答とログには出さない。
 
 サーバーは、編集権を持たない端末からの記録中の書き込みを拒否する。

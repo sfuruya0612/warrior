@@ -7,7 +7,7 @@ use std::cmp::Ordering;
 
 use serde::{Deserialize, Serialize};
 use warrior_core::auth::{
-    self, elevation_cookie, hash_session_token, validate_passkey_name, ELEVATION_COOKIE,
+    self, elevation_cookie_with, hash_session_token, validate_passkey_name, ELEVATION_COOKIE,
     ELEVATION_TTL_SECONDS, WEBAUTHN_CHALLENGE_TTL_SECONDS,
 };
 use warrior_core::base64url;
@@ -16,7 +16,7 @@ use warrior_core::webauthn::{self, AuthenticationInput, RegistrationInput, SignC
 use worker::{console_error, Env, Request, Response, Result, RouteContext};
 
 use super::session::{self, Session};
-use super::{append_cookie, cookie, now_iso, now_seconds, var};
+use super::{append_cookie, cookie, cookies_secure, now_iso, now_seconds, var};
 use crate::db::Db;
 use crate::error::{response, ErrorCode};
 use crate::rate_limit::{self, Kind};
@@ -324,8 +324,10 @@ pub async fn login_finish(mut request: Request, context: RouteContext<()>) -> Re
         ));
     }
     let token = crate::random::random_token()?;
-    let cookie = session::create(&db, &user_id, &token, now_seconds()).await?;
-    let terminal_cookie = crate::ownership::resolve(&db, &request, &user_id).await?;
+    let cookie =
+        session::create(&db, &user_id, &token, now_seconds(), cookies_secure(&env)?).await?;
+    let terminal_cookie =
+        crate::ownership::resolve(&db, &request, &user_id, cookies_secure(&env)?).await?;
     let body = Response::from_json(&serde_json::json!({ "status": "ok" }))?;
     let body = append_cookie(body, &cookie)?;
     append_cookie(body, &terminal_cookie)
@@ -380,7 +382,7 @@ pub async fn reauthenticate_finish(
     }
     let token = issue_elevation(&db, &session.id).await?;
     let body = Response::from_json(&serde_json::json!({ "status": "ok" }))?;
-    append_cookie(body, &elevation_cookie(&token))
+    append_cookie(body, &elevation_cookie_with(&token, cookies_secure(&env)?))
 }
 
 /// `GET /api/me/passkeys`

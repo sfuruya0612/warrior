@@ -7,11 +7,14 @@
 
 use serde::Deserialize;
 use warrior_core::account_deletion::{r2_prefixes, USER_OWNED_TABLES};
-use warrior_core::auth::{clear_elevation_cookie, clear_session_cookie, clear_terminal_cookie};
+use warrior_core::auth::{
+    clear_elevation_cookie_with, clear_session_cookie_with, clear_terminal_cookie_with,
+};
 use warrior_core::sql::{SqlStatement, SqlValue};
 use worker::{Env, Request, Response, Result, RouteContext};
 
 use crate::auth::append_cookie;
+use crate::auth::cookies_secure;
 use crate::auth::session;
 use crate::db::Db;
 use crate::error::{response, ErrorCode};
@@ -57,9 +60,10 @@ pub async fn delete(mut request: Request, context: RouteContext<()>) -> Result<R
     db.batch(&statements).await?;
 
     let mut response = Response::empty()?.with_status(204);
-    response = append_cookie(response, &clear_session_cookie())?;
-    response = append_cookie(response, &clear_elevation_cookie())?;
-    append_cookie(response, &clear_terminal_cookie())
+    let secure = cookies_secure(&env)?;
+    response = append_cookie(response, &clear_session_cookie_with(secure))?;
+    response = append_cookie(response, &clear_elevation_cookie_with(secure))?;
+    append_cookie(response, &clear_terminal_cookie_with(secure))
 }
 
 async fn delete_r2_objects(env: &Env, user_id: &str) -> Result<()> {

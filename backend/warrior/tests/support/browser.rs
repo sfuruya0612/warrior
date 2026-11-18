@@ -433,7 +433,8 @@ pub async fn wait_for_attribute_within(
         if Instant::now() >= deadline {
             let logs = driver.get_log("browser").await.unwrap_or_default();
             panic!(
-                "the attribute {attribute_name} of {selector} did not become {expected} within {timeout:?}: {logs:?}"
+                "the attribute {attribute_name} of {selector} did not become {expected} within {timeout:?}: URL {:?}; logs: {logs:?}",
+                driver.current_url().await
             );
         }
         std::thread::sleep(POLL_INTERVAL);

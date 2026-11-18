@@ -1,12 +1,13 @@
 //! 端末トークンの発行と照合 (ADR-003)。
 //!
-//! 端末トークンは 32 バイトの乱数とし、HttpOnly、Secure、SameSite=Lax の Cookie で渡す。
+//! 端末トークンは 32 バイトの乱数とし、HttpOnly、SameSite=Lax の Cookie で渡す。
+//! HTTPS では Secure を付け、ローカルの HTTP では付けない。
 //! D1 には SHA-256 のハッシュだけを保存し、応答とログには値を出さない。
 //! 端末トークンは利用者に属し、認証中の利用者と一致する行だけを使う。
 
 use serde::Deserialize;
 use warrior_core::auth::{
-    hash_terminal_token, is_valid_opaque_token, terminal_cookie, TERMINAL_COOKIE,
+    hash_terminal_token, is_valid_opaque_token, terminal_cookie_with, TERMINAL_COOKIE,
 };
 use warrior_core::sql::{SqlStatement, SqlValue};
 use worker::{Request, Result};
@@ -25,13 +26,13 @@ struct TerminalRow {
 /// 既存の Cookie の行が同じ利用者のものであれば再利用し、最終使用の時刻を更新する。
 /// Cookie が無い場合と、別の利用者の行であった場合は、新しいトークンを作る。
 /// 別の利用者の行は同じ端末を別のアカウントで使ったものなので削除する。
-pub async fn resolve(db: &Db, request: &Request, user_id: &str) -> Result<String> {
+pub async fn resolve(db: &Db, request: &Request, user_id: &str, secure: bool) -> Result<String> {
     if let Some(existing) = existing_token(request) {
         let hash = hash_terminal_token(&existing);
         if let Some(row) = find(db, &hash).await? {
             if row.user_id == user_id {
                 touch(db, &hash).await?;
-                return Ok(terminal_cookie(&existing));
+                return Ok(terminal_cookie_with(&existing, secure));
             }
             delete(db, &hash).await?;
         }
@@ -50,7 +51,7 @@ pub async fn resolve(db: &Db, request: &Request, user_id: &str) -> Result<String
         ],
     );
     db.run(&statement).await?;
-    Ok(terminal_cookie(&token))
+    Ok(terminal_cookie_with(&token, secure))
 }
 
 /// 認証中の要求の端末トークンの行の ID を返す。

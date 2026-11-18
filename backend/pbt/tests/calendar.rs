@@ -1,14 +1,13 @@
 //! カレンダーの日ごとの部位と月の集計の性質テスト (PRD の「カレンダー」)。
 //!
-//! 対応する要求: `REQ-CLD-001`、`REQ-CLD-002`、`REQ-CLD-003`、`REQ-CLD-005`。
+//! 対応する要求: `REQ-CLD-001`、`REQ-CLD-002`、`REQ-CLD-003`。
 //! トレーニング日数と部位区分ごとの日数が、その月の記録から正しく集計されること、
-//! 1 日に複数の部位を行うと部位区分ごとの日数の合計がトレーニング日数を超えること、
-//! 絞り込みが強調だけを変えることを確かめる。
+//! 1 日に複数の部位を行うと部位区分ごとの日数の合計がトレーニング日数を超えることを確かめる。
 
 use proptest::prelude::*;
 use warrior_core::calendar::{
-    day_body_parts, month_cells, month_days, month_view, next_month, parse_month, previous_month,
-    summarize, TrainingDay,
+    day_body_parts, month_cells, month_days, next_month, parse_month, previous_month, summarize,
+    TrainingDay,
 };
 use warrior_core::exercise::BodyPart;
 use warrior_core::jst::{JstDate, JstMonth};
@@ -136,11 +135,6 @@ fn multi_part_days() -> impl Strategy<Value = (JstMonth, Vec<TrainingDay>)> {
     })
 }
 
-fn selected_month_parts() -> impl Strategy<Value = (JstMonth, Vec<TrainingDay>, BodyPart)> {
-    (training_days(), 0usize..BodyPart::ALL.len())
-        .prop_map(|((month, days), index)| (month, days, BodyPart::ALL[index]))
-}
-
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(256))]
 
@@ -229,21 +223,6 @@ proptest! {
             .filter_map(|part| BodyPart::ALL.iter().position(|candidate| candidate == part))
             .collect::<Vec<_>>();
         prop_assert!(positions.windows(2).all(|pair| pair[0] < pair[1]));
-    }
-
-    #[test]
-    fn the_part_filter_changes_only_the_highlight((month, days, part) in selected_month_parts()) {
-        let all = month_view(month, days.clone(), None);
-        let filtered = month_view(month, days, Some(part));
-        prop_assert_eq!(all.training_days, filtered.training_days);
-        prop_assert_eq!(all.body_part_days, filtered.body_part_days);
-        prop_assert_eq!(all.days.len(), filtered.days.len());
-        for (unfiltered, day) in all.days.iter().zip(&filtered.days) {
-            prop_assert_eq!(unfiltered.date, day.date);
-            prop_assert_eq!(&unfiltered.body_parts, &day.body_parts);
-            prop_assert!(unfiltered.highlighted);
-            prop_assert_eq!(day.highlighted, day.body_parts.contains(&part));
-        }
     }
 
     #[test]

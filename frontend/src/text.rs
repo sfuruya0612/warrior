@@ -291,7 +291,6 @@ text_keys! {
     CalendarTrainingDays => "トレーニング",
     CalendarDaysUnit => "日",
     CalendarParts => "部位",
-    CalendarAllParts => "すべて",
     CalendarPartChest => "胸",
     CalendarPartBack => "背中",
     CalendarPartShoulders => "肩",

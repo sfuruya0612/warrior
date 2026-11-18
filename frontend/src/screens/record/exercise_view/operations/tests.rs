@@ -1,6 +1,7 @@
 //! セットの保存と完了の順序のブラウザのテスト。
 //!
-//! 対応する要求: `REQ-SET-009`。セットの完了は、保存中の値の更新より後ろに積まない。
+//! 対応する要求: `REQ-SET-009`、`REQ-REC-006`。セットの完了は、保存中の値の更新より後ろに積まない。
+//! 終了したトレーニングでは、完了済みのセットも編集して保存できる。
 
 use std::future::Future;
 use std::pin::pin;
@@ -12,6 +13,7 @@ use warrior_core::sync::OperationKind;
 use wasm_bindgen_test::wasm_bindgen_test;
 use wasm_bindgen_test::wasm_bindgen_test_configure;
 
+use super::set_io::completed_can_save;
 use super::{save_completed_set, stop_saving_for_completion, SetSaver, SetView};
 use crate::storage::{Storage, SCHEMA_VERSION};
 use crate::training_set::{self, SetSegmentValues, SetValues};
@@ -46,6 +48,37 @@ fn waiting_for_an_idle_set_ends_at_once() {
     let mut waiting = pin!(saver.wait_finished("set"));
     let mut context = Context::from_waker(Waker::noop());
     assert!(waiting.as_mut().poll(&mut context).is_ready());
+}
+
+#[wasm_bindgen_test]
+fn a_completed_set_saves_only_while_the_training_is_finished() {
+    let values = SetValues {
+        kind: SetKind::Normal,
+        mode: RecordMode::WeightAndReps,
+        segments: vec![SetSegmentValues {
+            weight_kg: 100.0,
+            reps: 5,
+            momentum_reps: 0,
+            assisted_reps: 0,
+            duration_seconds: None,
+            left: None,
+            right: None,
+        }],
+        completed: true,
+        body_weight_kg: Some(70.0),
+        rpe: None,
+        grip: None,
+    };
+    let (mut rows, _) = training_set::create("training", "exercise", 1, &values)
+        .expect("the completed set creation");
+    rows.set.completed = 1;
+    let set = SetView::from_rows(rows.set, rows.segments);
+    assert!(set.completed());
+
+    let saver = SetSaver::default();
+    assert!(!completed_can_save(&saver, &set));
+    saver.set_editable_completed(true);
+    assert!(completed_can_save(&saver, &set));
 }
 
 #[wasm_bindgen_test]

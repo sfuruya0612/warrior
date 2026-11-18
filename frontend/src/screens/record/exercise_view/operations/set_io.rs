@@ -206,7 +206,7 @@ pub(super) async fn save_set_loop(
         return false;
     };
     while let Some(set) = find_set(views, &set_id) {
-        if saver.is_stopped(&set_id) || set.completed() {
+        if saver.is_stopped(&set_id) || !completed_can_save(&saver, &set) {
             break;
         }
         if let Some(key) = set.validation_error(lateral) {
@@ -450,9 +450,15 @@ fn find_set(views: Signal<Vec<ExerciseView>>, set_id: &str) -> Option<SetView> {
         .cloned()
 }
 
-/// 保存を続けない状態か。止めたセット、完了したセット、画面から消えたセット。
+/// 完了済みのセットを保存してよいか。終了したトレーニングのセットだけ編集できる。
+pub(super) fn completed_can_save(saver: &SetSaver, set: &SetView) -> bool {
+    !set.completed() || saver.editable_completed()
+}
+
+/// 保存を続けない状態か。止めたセット、保存しない完了済みのセット、画面から消えたセット。
 fn saving_stopped(views: Signal<Vec<ExerciseView>>, saver: &SetSaver, set_id: &str) -> bool {
-    saver.is_stopped(set_id) || find_set(views, set_id).is_none_or(|set| set.completed())
+    saver.is_stopped(set_id)
+        || find_set(views, set_id).is_none_or(|set| !completed_can_save(saver, &set))
 }
 
 fn settings_for_set(views: Signal<Vec<ExerciseView>>, set_id: &str) -> Option<(RecordMode, bool)> {

@@ -48,10 +48,12 @@ pub fn AppShell() -> Element {
             class: "mx-auto flex h-dvh w-full max-w-[390px] flex-col overflow-hidden bg-bg text-text",
             "data-route": route_name,
             div { class: "shrink-0 pt-[54px]" }
-            header { class: "flex h-11 shrink-0 items-center justify-between border-b border-line px-5",
+            header { class: "flex h-8 shrink-0 items-center justify-between border-b border-line px-5",
+                // ロゴをヘッダーの高さに収めつつ、リンクの当たり判定は 44px 以上にする。
+                // 上にはみ出した分は端末の表示領域を空ける余白に重なる。
                 Link {
                     to: Route::Home {},
-                    class: "flex items-center gap-[10px]",
+                    class: "flex h-11 shrink-0 -mt-3 items-center gap-[10px] self-start pt-3",
                     svg {
                         class: "h-[23px] w-[30px]",
                         view_box: "40 70 440 340",

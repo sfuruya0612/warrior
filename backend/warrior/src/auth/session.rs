@@ -2,13 +2,13 @@
 
 use serde::{Deserialize, Serialize};
 use warrior_core::auth::{
-    clear_session_cookie, hash_session_token, is_valid_opaque_token, session_cookie,
+    clear_session_cookie_with, hash_session_token, is_valid_opaque_token, session_cookie_with,
     SESSION_COOKIE, SESSION_TTL_SECONDS,
 };
 use warrior_core::sql::{SqlStatement, SqlValue};
 use worker::{Env, Request, Response, Result};
 
-use super::{append_cookie, cookie, now_iso};
+use super::{append_cookie, cookie, cookies_secure, now_iso};
 use crate::db::Db;
 use crate::error::{response, ErrorCode};
 use crate::ownership;
@@ -89,11 +89,17 @@ pub async fn logout(request: Request, context: worker::RouteContext<()>) -> Resu
         }
     }
     let body = Response::from_json(&serde_json::json!({ "status": "ok" }))?;
-    append_cookie(body, &clear_session_cookie())
+    append_cookie(body, &clear_session_cookie_with(cookies_secure(&env)?))
 }
 
 /// セッションを発行する。
-pub async fn create(db: &Db, user_id: &str, token: &str, now_epoch_seconds: i64) -> Result<String> {
+pub async fn create(
+    db: &Db,
+    user_id: &str,
+    token: &str,
+    now_epoch_seconds: i64,
+    secure: bool,
+) -> Result<String> {
     let statement = SqlStatement::new(
         "INSERT INTO auth_sessions (id, user_id, token_hash, created_at, expires_at) \
          VALUES (?, ?, ?, ?, ?)",
@@ -108,5 +114,5 @@ pub async fn create(db: &Db, user_id: &str, token: &str, now_epoch_seconds: i64)
         ],
     );
     db.run(&statement).await?;
-    Ok(session_cookie(token))
+    Ok(session_cookie_with(token, secure))
 }

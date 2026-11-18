@@ -1,4 +1,4 @@
-//! カレンダーの月表示、部位の色分け、日数の集計、日の詳細、絞り込み、凡例。
+//! カレンダーの月表示、部位の色分け、日数の集計、日の詳細、凡例。
 
 use dioxus::prelude::*;
 use dioxus_router::Link;
@@ -11,8 +11,8 @@ use warrior_core::jst::{JstDate, JstMonth, UtcInstant};
 use crate::calendar as calendar_api;
 use crate::calendar_view::{
     build_cells, day_aria_label, day_cell_class, day_number_class, day_parts, day_title,
-    format_weight, part_button_class, part_color_class, part_counts, part_label, set_notes,
-    set_text, weekdays, CalendarCell,
+    format_weight, part_color_class, part_counts, part_label, set_notes, set_text, weekdays,
+    CalendarCell,
 };
 use crate::date_select::DateSelect;
 use crate::ids::{new_uuid, now_iso};
@@ -29,29 +29,22 @@ pub fn CalendarScreen() -> Element {
     let handlers = calendar_handlers(state);
 
     let month_now = (state.month)();
-    let part_now = (state.part)();
     let selected = (state.selected)();
     let view = (state.month_data)();
     let month_error = (state.month_error)();
     let detail = (state.day_data)();
     let day_error = (state.day_error)();
     let training_days = view.as_ref().map(|view| view.training_days).unwrap_or(0);
+    let part_days = part_counts(view.as_ref());
     let loading = month_now.is_some() && view.is_none() && month_error.is_none();
     let detail_loading = selected.is_some() && detail.is_none() && day_error.is_none();
 
     rsx! {
         div {
-            class: "flex min-h-full",
+            class: "min-h-full",
             "data-calendar": "true",
             "data-calendar-month": month_now.map(month_text).unwrap_or_default(),
-            "data-calendar-selected-part": part_now.map(BodyPart::as_str).unwrap_or_default(),
-            PartRail {
-                counts: part_counts(view.as_ref()),
-                selected: part_now,
-                training_days: training_days,
-                on_select: handlers.part,
-            }
-            section { class: "min-w-0 flex-1 px-3.5",
+            section { class: "px-3.5",
                 div { class: "flex h-12 items-center justify-between",
                     h1 { class: "text-[17px] font-black", "{text(Key::CalendarTitle)}" }
                     Link {
@@ -74,6 +67,7 @@ pub fn CalendarScreen() -> Element {
                     today: today,
                     on_select: handlers.select,
                 }
+                PartLegend { counts: part_days }
                 DayDetail {
                     detail: detail,
                     selected: selected,
@@ -96,7 +90,6 @@ pub fn CalendarScreen() -> Element {
 #[derive(Clone, Copy, PartialEq)]
 struct CalendarSignals {
     month: Signal<Option<JstMonth>>,
-    part: Signal<Option<BodyPart>>,
     selected: Signal<Option<JstDate>>,
     month_data: Signal<Option<CalendarMonth>>,
     month_error: Signal<Option<String>>,
@@ -112,7 +105,6 @@ struct CalendarSignals {
 fn use_calendar_state(today: Option<JstDate>) -> CalendarSignals {
     let state = CalendarSignals {
         month: use_signal(|| today.map(|date| date.month_range())),
-        part: use_signal(|| Option::<BodyPart>::None),
         selected: use_signal(|| Option::<JstDate>::None),
         month_data: use_signal(|| Option::<CalendarMonth>::None),
         month_error: use_signal(|| Option::<String>::None),
@@ -136,7 +128,6 @@ fn use_calendar_state(today: Option<JstDate>) -> CalendarSignals {
         let request = MonthLoad {
             generation,
             month: current,
-            part: (state.part)(),
         };
         spawn(async move {
             load_month(request, state).await;
@@ -165,7 +156,6 @@ fn use_calendar_state(today: Option<JstDate>) -> CalendarSignals {
 #[derive(Clone, Copy)]
 struct CalendarHandlers {
     select: EventHandler<JstDate>,
-    part: EventHandler<Option<BodyPart>>,
     previous: EventHandler<()>,
     next: EventHandler<()>,
     month_retry: EventHandler<()>,
@@ -179,10 +169,6 @@ fn calendar_handlers(state: CalendarSignals) -> CalendarHandlers {
             state.selected.set(Some(date));
             state.day_data.set(None);
             state.day_error.set(None);
-        }),
-        part: EventHandler::new(move |value: Option<BodyPart>| {
-            let mut state = state;
-            state.part.set(value);
         }),
         previous: EventHandler::new(move |_: ()| move_to_month(state, previous_month)),
         next: EventHandler::new(move |_: ()| move_to_month(state, next_month)),
@@ -328,52 +314,25 @@ fn MonthStatus(loading: bool, error: Option<String>, on_retry: EventHandler<()>)
 }
 
 #[component]
-fn PartRail(
-    counts: Vec<(BodyPart, u32)>,
-    selected: Option<BodyPart>,
-    training_days: u32,
-    on_select: EventHandler<Option<BodyPart>>,
-) -> Element {
+fn PartLegend(counts: Vec<(BodyPart, u32)>) -> Element {
     rsx! {
-        aside {
-            class: "flex w-[60px] shrink-0 flex-col border-r border-line bg-surface",
+        div {
+            class: "mt-2 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-text-sub",
             "data-calendar-legend": "true",
             "aria-label": text(Key::CalendarParts),
-            span { class: "flex h-12 items-center justify-center text-[11px] text-text-sub",
-                "{text(Key::CalendarParts)}"
-            }
-            button {
-                class: part_button_class(selected.is_none()),
-                "data-calendar-part": "all",
-                "data-calendar-all-days": "{training_days}",
-                "aria-pressed": if selected.is_none() { "true" } else { "false" },
-                onclick: move |_| on_select.call(None),
-                span { class: "text-xs font-bold", "{text(Key::CalendarAllParts)}" }
-                span { class: "font-condensed text-[15px] font-semibold",
-                    "{training_days} {text(Key::CalendarDaysUnit)}"
-                }
-            }
             for (part, days) in counts {
-                {
-                    let active = selected == Some(part);
-                    let class = part_button_class(active);
-                    rsx! {
-                        button {
-                            class: class,
-                            "data-calendar-part": part.as_str(),
-                            "data-calendar-part-days": "{days}",
-                            "aria-pressed": if active { "true" } else { "false" },
-                            onclick: move |_| on_select.call(Some(part)),
-                            span {
-                                class: format!("h-1.5 w-[22px] {}", part_color_class(part)),
-                                "data-calendar-swatch": part.as_str(),
-                                "aria-hidden": "true"
-                            }
-                            span { class: "text-xs", "{part_label(part)}" }
-                            span { class: "font-condensed text-sm font-semibold text-text-sub",
-                                "{days} {text(Key::CalendarDaysUnit)}"
-                            }
-                        }
+                span {
+                    class: "flex items-center gap-1",
+                    "data-calendar-part": part.as_str(),
+                    "data-calendar-part-days": "{days}",
+                    span {
+                        class: format!("h-1.5 w-[14px] {}", part_color_class(part)),
+                        "data-calendar-swatch": part.as_str(),
+                        "aria-hidden": "true"
+                    }
+                    span { "{part_label(part)}" }
+                    span { class: "font-condensed text-[13px] font-semibold text-text",
+                        "{days} {text(Key::CalendarDaysUnit)}"
                     }
                 }
             }
@@ -398,7 +357,6 @@ fn CalendarDayCell(cell: CalendarCell, on_select: EventHandler<JstDate>) -> Elem
             class: class,
             "data-calendar-day": "{date}",
             "data-calendar-parts": parts,
-            "data-calendar-highlighted": if cell.highlighted { "true" } else { "false" },
             "data-calendar-selected": if cell.selected { "true" } else { "false" },
             "data-calendar-future": if cell.future { "true" } else { "false" },
             "aria-pressed": if cell.selected { "true" } else { "false" },
@@ -703,19 +661,18 @@ async fn save_backfill(
     Ok(session)
 }
 
-/// 月の読み込み要求。応答を適用してよいかを、要求した月と部位と世代で決める。
+/// 月の読み込み要求。応答を適用してよいかを、要求した月と世代で決める。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct MonthLoad {
     /// 要求の世代。要求を出すたびに進む。
     generation: u32,
     month: JstMonth,
-    part: Option<BodyPart>,
 }
 
 impl MonthLoad {
-    /// いまの世代が要求のままで、表示中の月と部位も要求のままなら応答を適用する。
-    fn is_current(self, generation: u32, month: Option<JstMonth>, part: Option<BodyPart>) -> bool {
-        self.generation == generation && month == Some(self.month) && self.part == part
+    /// いまの世代が要求のままで、表示中の月も要求のままなら応答を適用する。
+    fn is_current(self, generation: u32, month: Option<JstMonth>) -> bool {
+        self.generation == generation && month == Some(self.month)
     }
 }
 
@@ -735,12 +692,8 @@ impl DayLoad {
 }
 
 async fn load_month(request: MonthLoad, mut state: CalendarSignals) {
-    let result = calendar_api::month(request.month.start(), request.part).await;
-    if !request.is_current(
-        *state.month_generation.peek(),
-        *state.month.peek(),
-        *state.part.peek(),
-    ) {
+    let result = calendar_api::month(request.month.start()).await;
+    if !request.is_current(*state.month_generation.peek(), *state.month.peek()) {
         return;
     }
     match result {
@@ -793,7 +746,6 @@ mod tests {
     //! ここでは古い応答を捨てる条件を直接確かめる。
 
     use warrior_core::calendar::next_month;
-    use warrior_core::exercise::BodyPart;
     use warrior_core::jst::JstDate;
     use wasm_bindgen_test::wasm_bindgen_test;
 
@@ -806,34 +758,16 @@ mod tests {
         let request = MonthLoad {
             generation: 2,
             month: november,
-            part: None,
         };
-        assert!(request.is_current(2, Some(november), None));
+        assert!(request.is_current(2, Some(november)));
         assert!(
-            !request.is_current(2, Some(december), None),
+            !request.is_current(2, Some(december)),
             "the displayed month moved before the response arrived"
         );
         assert!(
-            !request.is_current(3, Some(november), None),
+            !request.is_current(3, Some(november)),
             "a newer request replaced this request"
         );
-        assert!(
-            !request.is_current(2, Some(november), Some(BodyPart::Chest)),
-            "the part filter changed before the response arrived"
-        );
-    }
-
-    #[wasm_bindgen_test]
-    fn a_month_response_is_applied_while_the_filter_stays() {
-        let november = JstDate::new(2026, 11, 12).unwrap().month_range();
-        let request = MonthLoad {
-            generation: 4,
-            month: november,
-            part: Some(BodyPart::Chest),
-        };
-        assert!(request.is_current(4, Some(november), Some(BodyPart::Chest)));
-        assert!(!request.is_current(4, Some(november), None));
-        assert!(!request.is_current(4, Some(november), Some(BodyPart::Legs)));
     }
 
     #[wasm_bindgen_test]

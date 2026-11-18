@@ -514,7 +514,7 @@ async fn clear_account_removes_the_database_the_outbox_and_advances_the_generati
         .expect("the outbox read must work")
         .is_empty());
 
-    let reopened = Storage::open_with(&name, 3)
+    let reopened = Storage::open_with(&name, warrior_frontend::storage::SCHEMA_VERSION)
         .await
         .expect("the database must reopen");
     assert_eq!(

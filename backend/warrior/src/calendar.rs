@@ -53,7 +53,7 @@ enum StoredCalendarError {
     UnreadableSnapshot,
 }
 
-/// `GET /api/calendar?month=YYYY-MM&part=...`
+/// `GET /api/calendar?month=YYYY-MM`
 pub async fn month(request: Request, context: RouteContext<()>) -> Result<Response> {
     let env = context.env;
     let Some(authenticated) = session::resolve(&request, &env).await? else {
@@ -70,13 +70,6 @@ pub async fn month(request: Request, context: RouteContext<()>) -> Result<Respon
     else {
         return Ok(response(ErrorCode::BadRequest, "the month must be YYYY-MM"));
     };
-    let part = match query.get("part") {
-        None => None,
-        Some(text) => match BodyPart::parse(text) {
-            Some(part) => Some(part),
-            None => return Ok(response(ErrorCode::BadRequest, "the part is unknown")),
-        },
-    };
     let db = Db::new(env.d1("DB")?);
     let dates = db
         .all(&month_dates_statement(&authenticated.id, month))
@@ -86,7 +79,7 @@ pub async fn month(request: Request, context: RouteContext<()>) -> Result<Respon
         .all(&month_snapshots_statement(&authenticated.id, month))
         .await?
         .results::<SnapshotRow>()?;
-    match build_month(month, dates, snapshots, part) {
+    match build_month(month, dates, snapshots) {
         Ok(view) => Response::from_json(&view),
         Err(error) => {
             console_error!("the stored calendar rows are invalid: {error:?}");
@@ -186,7 +179,6 @@ fn build_month(
     month: JstMonth,
     dates: Vec<DateRow>,
     snapshots: Vec<SnapshotRow>,
-    part: Option<BodyPart>,
 ) -> std::result::Result<CalendarMonth, StoredCalendarError> {
     let mut parts_by_date = HashMap::<String, Vec<BodyPart>>::new();
     for row in snapshots {
@@ -207,7 +199,7 @@ fn build_month(
             body_parts: core_calendar::day_body_parts(parts),
         });
     }
-    Ok(core_calendar::month_view(month, days, part))
+    Ok(core_calendar::month_view(month, days))
 }
 
 fn build_day(
@@ -376,19 +368,17 @@ mod tests {
             snapshot("2026-11-01", BodyPart::Triceps),
             snapshot("2026-11-03", BodyPart::Legs),
         ];
-        let view =
-            build_month(month, dates, snapshots, Some(BodyPart::Chest)).expect("a month view");
+        let view = build_month(month, dates, snapshots).expect("a month view");
         assert_eq!(view.month, "2026-11");
-        assert_eq!(view.part, Some(BodyPart::Chest));
         assert_eq!(view.training_days, 2);
         assert_eq!(
             view.days
                 .iter()
-                .map(|day| (day.date.day(), day.body_parts.clone(), day.highlighted))
+                .map(|day| (day.date.day(), day.body_parts.clone()))
                 .collect::<Vec<_>>(),
             vec![
-                (1, vec![BodyPart::Chest, BodyPart::Triceps], true),
-                (3, vec![BodyPart::Legs], false),
+                (1, vec![BodyPart::Chest, BodyPart::Triceps]),
+                (3, vec![BodyPart::Legs]),
             ]
         );
         let chest = view
@@ -405,7 +395,7 @@ mod tests {
     fn an_invalid_stored_date_is_rejected() {
         let month = JstDate::new(2026, 2, 1).unwrap().month_range();
         assert_eq!(
-            build_month(month, vec![row("2026-02-30")], Vec::new(), None),
+            build_month(month, vec![row("2026-02-30")], Vec::new()),
             Err(StoredCalendarError::InvalidDate("2026-02-30".to_owned()))
         );
     }
@@ -418,7 +408,7 @@ mod tests {
             snapshot: "not-json".to_owned(),
         }];
         assert_eq!(
-            build_month(month, vec![row("2026-02-01")], snapshots, None),
+            build_month(month, vec![row("2026-02-01")], snapshots),
             Err(StoredCalendarError::UnreadableSnapshot)
         );
     }

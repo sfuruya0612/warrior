@@ -11,6 +11,11 @@ chromedriver = "157.0.8103.15"
 ripgrep = "15.2.0"
 java = "temurin-25.0.4+101.0.LTS"
 
+[settings]
+# Cloudflare のビルド環境が持つグローバル設定のツールまでインストールしない。
+# ビルドに必要なツールは、ビルドコマンドで明示的にインストールする。
+auto_install = false
+
 [tasks.setup]
 description = "開発に必要な依存を取得する"
 run = "cargo fetch"

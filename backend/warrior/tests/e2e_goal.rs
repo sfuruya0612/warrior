@@ -18,6 +18,8 @@ const T_BAR_ID: &str = "a7c4e2f0-0000-4000-8000-000000000013";
 const TRAINING_ID: &str = "a7c4e2f0-0000-4000-8000-000000000301";
 const SERVER_PORT: u16 = 8872;
 const PROVIDER_PORT: u16 = 8873;
+const GOALS: &str = "[data-history-goals]";
+const BESTS: &str = "[data-history-bests]";
 
 #[tokio::test]
 async fn sets_the_goal_and_shows_the_difference_in_the_history_and_the_graph() {
@@ -62,8 +64,8 @@ async fn sets_the_goal_and_shows_the_difference_in_the_history_and_the_graph() {
     seed_best(&server, &user_id, today);
 
     open_history(&driver, &server).await;
-    browser::wait_for_attribute(&driver, driver_selector(), "data-history-goals-count", "0").await;
-    browser::wait_for_attribute(&driver, driver_selector(), "data-history-bests-count", "1").await;
+    browser::wait_for_attribute(&driver, GOALS, "data-history-goals-count", "0").await;
+    browser::wait_for_attribute(&driver, BESTS, "data-history-bests-count", "1").await;
 
     select_filter(&driver, "pronated_medium").await;
     browser::wait_for_present(&driver, "[data-goal-weight]").await;
@@ -75,9 +77,9 @@ async fn sets_the_goal_and_shows_the_difference_in_the_history_and_the_graph() {
     wait_for_goal(&driver, "95", "90", "5", &target_date).await;
 
     select_filter(&driver, "supinated_narrow").await;
-    browser::wait_for_attribute(&driver, driver_selector(), "data-history-goals-count", "0").await;
+    browser::wait_for_attribute(&driver, GOALS, "data-history-goals-count", "0").await;
     select_filter(&driver, "").await;
-    browser::wait_for_attribute(&driver, driver_selector(), "data-history-goals-count", "1").await;
+    browser::wait_for_attribute(&driver, GOALS, "data-history-goals-count", "1").await;
 
     driver
         .goto(format!("{}/exercises/{T_BAR_ID}/history", server.origin()))
@@ -86,14 +88,10 @@ async fn sets_the_goal_and_shows_the_difference_in_the_history_and_the_graph() {
     wait_for_goal(&driver, "95", "90", "5", &target_date).await;
 
     browser::click(&driver, "[data-goal-delete]").await;
-    browser::wait_for_attribute(&driver, driver_selector(), "data-history-goals-count", "0").await;
+    browser::wait_for_attribute(&driver, GOALS, "data-history-goals-count", "0").await;
 
     browser::assert_no_panic(&driver).await;
     driver.quit().await.expect("the browser must close");
-}
-
-fn driver_selector() -> &'static str {
-    "[data-exercise-history]"
 }
 
 async fn login(driver: &WebDriver, server: &DevServer, provider: &TestOidc) {
@@ -155,7 +153,7 @@ async fn wait_for_goal(
     difference: &str,
     target_date: &JstDate,
 ) {
-    browser::wait_for_attribute(driver, driver_selector(), "data-history-goals-count", "1").await;
+    browser::wait_for_attribute(driver, GOALS, "data-history-goals-count", "1").await;
     let selector = "[data-history-goal]";
     browser::wait_for_attribute(driver, selector, "data-history-goal-target", target).await;
     browser::wait_for_attribute(driver, selector, "data-history-goal-current", current).await;

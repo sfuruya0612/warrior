@@ -1,6 +1,6 @@
 //! セットの入力、追加、削除、並べ替え、完了と、端末内への保存。
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
 use std::future::poll_fn;
 use std::rc::Rc;
@@ -44,9 +44,21 @@ struct SaveStates {
 #[derive(Clone, Default)]
 pub(in crate::screens::record) struct SetSaver {
     states: Rc<RefCell<SaveStates>>,
+    /// 終了したトレーニングで、完了済みのセットを編集できるか。
+    editable_completed: Rc<Cell<bool>>,
 }
 
 impl SetSaver {
+    /// 完了済みのセットを保存してよいかを設定する。
+    pub(in crate::screens::record) fn set_editable_completed(&self, editable: bool) {
+        self.editable_completed.set(editable);
+    }
+
+    /// 完了済みのセットを保存してよいか。
+    fn editable_completed(&self) -> bool {
+        self.editable_completed.get()
+    }
+
     fn start(&self, set_id: &str) -> bool {
         let mut states = self.states.borrow_mut();
         if states.stopped.contains(set_id) {

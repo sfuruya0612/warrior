@@ -49,8 +49,8 @@ async fn wrangler_google_login_creates_and_revokes_a_session_in_a_browser() {
     if browser == Browser::Chrome {
         assert_eq!(
             session.secure,
-            Some(true),
-            "the session cookie must be Secure"
+            Some(false),
+            "the local HTTP session cookie must not be Secure"
         );
         assert_eq!(
             session.http_only,
@@ -60,7 +60,7 @@ async fn wrangler_google_login_creates_and_revokes_a_session_in_a_browser() {
         assert_eq!(session.same_site, Some(SameSite::Lax));
     } else {
         // SafariDriver は Cookie の属性を返さないことがある。属性の正本は結合テストと単体テストで確かめる。
-        assert_ne!(session.secure, Some(false));
+        assert_ne!(session.secure, Some(true));
         assert_ne!(session.http_only, Some(false));
         if let Some(same_site) = session.same_site {
             assert_eq!(same_site, SameSite::Lax);
@@ -173,8 +173,8 @@ fn check_terminal_cookie(browser: Browser, terminal: &Cookie) {
     if browser == Browser::Chrome {
         assert_eq!(
             terminal.secure,
-            Some(true),
-            "the terminal cookie must be Secure"
+            Some(false),
+            "the local HTTP terminal cookie must not be Secure"
         );
         assert_eq!(
             terminal.http_only,
@@ -184,7 +184,7 @@ fn check_terminal_cookie(browser: Browser, terminal: &Cookie) {
         assert_eq!(terminal.same_site, Some(SameSite::Lax));
     } else {
         // SafariDriver は Cookie の属性を返さないことがある。属性の正本は結合テストと単体テストで確かめる。
-        assert_ne!(terminal.secure, Some(false));
+        assert_ne!(terminal.secure, Some(true));
         assert_ne!(terminal.http_only, Some(false));
         if let Some(same_site) = terminal.same_site {
             assert_eq!(same_site, SameSite::Lax);

@@ -288,14 +288,15 @@ fn open_success_handler(
 }
 
 fn open_error_handler(settled: Rc<Cell<bool>>, reject: js_sys::Function) -> js_sys::Function {
-    Closure::once_into_js(move |_event: web_sys::Event| {
+    Closure::once_into_js(move |event: web_sys::Event| {
         if settled.get() {
             return;
         }
-        let _ = reject.call1(
-            &JsValue::NULL,
-            &JsValue::from_str("the database could not be opened"),
-        );
+        let message = event_target::<IdbRequest>(&event)
+            .and_then(|request| request.error().ok().flatten())
+            .map(|error| describe(&error))
+            .unwrap_or_else(|| "the database could not be opened".to_owned());
+        let _ = reject.call1(&JsValue::NULL, &JsValue::from_str(&message));
     })
     .unchecked_into()
 }

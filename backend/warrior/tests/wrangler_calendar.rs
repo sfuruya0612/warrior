@@ -1,9 +1,8 @@
 //! カレンダーの月の集計と日の詳細の結合テスト。
 //!
-//! 対応する要求: `REQ-CLD-001`、`REQ-CLD-002`、`REQ-CLD-003`、`REQ-CLD-004`、`REQ-CLD-005`、`REQ-CLD-006`。
+//! 対応する要求: `REQ-CLD-001`、`REQ-CLD-002`、`REQ-CLD-003`、`REQ-CLD-004`、`REQ-CLD-006`。
 //! 月の境界を日本時間の日付で分け、日ごとの部位を記録時のスナップショットから判定し、
-//! 月のトレーニング日数と部位区分ごとの日数を集計し、部位の絞り込みが強調だけを変え、
-//! 日の詳細が種目、セット、総重量を返すことを確かめる。
+//! 月のトレーニング日数と部位区分ごとの日数を集計し、日の詳細が種目、セット、総重量を返すことを確かめる。
 //! 種目とセットは D1 に置き、記録画面は使わない。
 
 mod support;
@@ -59,7 +58,6 @@ fn the_calendar_returns_the_month_and_the_day_details_for_its_owner() {
     let cookie = format!("warrior_session={token}");
 
     check_the_january_month(&server, &cookie);
-    check_the_part_filter_keeps_the_counts(&server, &cookie);
     check_the_snapshot_body_part(&server, &cookie);
     check_the_month_boundary(&server, &cookie);
     check_the_empty_month(&server, &cookie);
@@ -74,16 +72,15 @@ fn check_the_january_month(server: &DevServer, cookie: &str) {
     assert_eq!(view.month, "2026-01");
     assert_eq!(view.start, JstDate::new(2026, 1, 1).unwrap());
     assert_eq!(view.end, JstDate::new(2026, 1, 31).unwrap());
-    assert_eq!(view.part, None);
     assert_eq!(
         view.days
             .iter()
-            .map(|day| (day.date.day(), day.body_parts.clone(), day.highlighted))
+            .map(|day| (day.date.day(), day.body_parts.clone()))
             .collect::<Vec<_>>(),
         vec![
-            (10, vec![BodyPart::Chest, BodyPart::Triceps], true),
-            (20, vec![BodyPart::Back], true),
-            (31, vec![BodyPart::Legs], true),
+            (10, vec![BodyPart::Chest, BodyPart::Triceps]),
+            (20, vec![BodyPart::Back]),
+            (31, vec![BodyPart::Legs]),
         ]
     );
     assert_eq!(view.training_days, 3);
@@ -102,26 +99,6 @@ fn check_the_january_month(server: &DevServer, cookie: &str) {
     );
     let total: u32 = view.body_part_days.iter().map(|entry| entry.days).sum();
     assert_eq!(total, 4, "the parts exceed the training days");
-}
-
-fn check_the_part_filter_keeps_the_counts(server: &DevServer, cookie: &str) {
-    let all = month(server, cookie, "2026-01");
-    let filtered = get_month(server, cookie, "2026-01", "triceps");
-    assert_eq!(filtered.part, Some(BodyPart::Triceps));
-    assert_eq!(filtered.training_days, all.training_days);
-    assert_eq!(filtered.body_part_days, all.body_part_days);
-    assert_eq!(
-        filtered
-            .days
-            .iter()
-            .map(|day| day.highlighted)
-            .collect::<Vec<_>>(),
-        vec![true, false, false]
-    );
-    assert_eq!(
-        filtered.days.iter().map(|day| day.date).collect::<Vec<_>>(),
-        all.days.iter().map(|day| day.date).collect::<Vec<_>>()
-    );
 }
 
 fn check_the_snapshot_body_part(server: &DevServer, cookie: &str) {
@@ -146,15 +123,13 @@ fn check_the_snapshot_body_part(server: &DevServer, cookie: &str) {
         .expect("the stored snapshot is JSON")["body_part"],
         "back"
     );
-    let filtered = get_month(server, cookie, "2026-01", "back");
-    assert_eq!(
-        filtered
-            .days
-            .iter()
-            .map(|day| day.highlighted)
-            .collect::<Vec<_>>(),
-        vec![false, true, false]
-    );
+    let view = month(server, cookie, "2026-01");
+    let day = view
+        .days
+        .iter()
+        .find(|day| day.date == JstDate::new(2026, 1, 20).unwrap())
+        .expect("the day with the snapshot");
+    assert_eq!(day.body_parts, vec![BodyPart::Back]);
 }
 
 fn check_the_month_boundary(server: &DevServer, cookie: &str) {
@@ -286,7 +261,6 @@ fn check_rejections(server: &DevServer, cookie: &str) {
         "/api/calendar",
         "/api/calendar?month=2026-1",
         "/api/calendar?month=2026-13",
-        "/api/calendar?month=2026-01&part=arms",
         "/api/calendar/2026-02-30",
     ] {
         let rejected = server.request("GET", path, &[("Cookie", cookie)]);
@@ -313,16 +287,11 @@ fn check_rejections(server: &DevServer, cookie: &str) {
 }
 
 fn month(server: &DevServer, cookie: &str, month: &str) -> CalendarMonth {
-    get_month(server, cookie, month, "")
-}
-
-fn get_month(server: &DevServer, cookie: &str, month: &str, part: &str) -> CalendarMonth {
-    let path = if part.is_empty() {
-        format!("/api/calendar?month={month}")
-    } else {
-        format!("/api/calendar?month={month}&part={part}")
-    };
-    let response = server.request("GET", &path, &[("Cookie", cookie)]);
+    let response = server.request(
+        "GET",
+        &format!("/api/calendar?month={month}"),
+        &[("Cookie", cookie)],
+    );
     assert_eq!(response.status, 200, "{}", response.body);
     serde_json::from_str(&response.body).expect("the month response")
 }

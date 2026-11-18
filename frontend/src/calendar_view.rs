@@ -16,7 +16,6 @@ use crate::text::{text, Key};
 pub(crate) struct CalendarCell {
     pub date: JstDate,
     pub body_parts: Vec<BodyPart>,
-    pub highlighted: bool,
     pub selected: bool,
     pub today: bool,
     pub future: bool,
@@ -32,7 +31,6 @@ pub(crate) fn build_cells(
     let Some(month) = month else {
         return Vec::new();
     };
-    let part = view.and_then(|view| view.part);
     let days = view.map(|view| view.days.as_slice()).unwrap_or_default();
     month_cells(month)
         .into_iter()
@@ -42,7 +40,6 @@ pub(crate) fn build_cells(
                 CalendarCell {
                     date,
                     body_parts: day.map(|day| day.body_parts.clone()).unwrap_or_default(),
-                    highlighted: day.map_or(part.is_none(), |day| day.highlighted),
                     selected: selected == Some(date),
                     today: today == Some(date),
                     future: today.is_some_and(|today| date > today),
@@ -78,9 +75,6 @@ pub(crate) fn day_cell_class(cell: &CalendarCell) -> String {
     if cell.selected {
         class.push_str(" bg-surface-raised");
     }
-    if !cell.highlighted {
-        class.push_str(" opacity-40");
-    }
     class
 }
 
@@ -91,15 +85,6 @@ pub(crate) fn day_number_class(cell: &CalendarCell) -> &'static str {
         "flex h-6 items-center justify-center text-text-sub"
     } else {
         "flex h-6 items-center justify-center"
-    }
-}
-
-pub(crate) fn part_button_class(active: bool) -> &'static str {
-    if active {
-        "flex flex-1 flex-col items-center justify-center gap-0.5 border-t border-l-[3px] \
-         border-line border-l-primary bg-bg text-text"
-    } else {
-        "flex flex-1 flex-col items-center justify-center gap-0.5 border-t border-line text-text"
     }
 }
 
@@ -333,7 +318,6 @@ mod tests {
         let first = cells[6].clone().expect("the first day");
         assert_eq!(first.date, JstDate::new(2026, 11, 1).unwrap());
         assert!(first.today);
-        assert!(first.highlighted);
         assert_eq!(first.body_parts, vec![BodyPart::Chest, BodyPart::Triceps]);
         let third = cells[8].clone().expect("the third day");
         assert!(third.selected);
@@ -342,23 +326,6 @@ mod tests {
         assert!(second.body_parts.is_empty());
         assert!(!second.today);
         assert!(!second.selected);
-    }
-
-    #[wasm_bindgen_test]
-    fn a_part_filter_dims_the_days_without_the_part() {
-        let month = JstDate::new(2026, 11, 12).unwrap().month_range();
-        let view = month_view_with(None);
-        let cells = build_cells(Some(month), Some(&view), None, None);
-        let filtered = month_view_with(Some(BodyPart::Chest));
-        let filtered = build_cells(Some(month), Some(&filtered), None, None);
-        assert!(cells[6].as_ref().expect("a day").highlighted);
-        assert!(cells[8].as_ref().expect("a day").highlighted);
-        assert!(filtered[6].as_ref().expect("a day").highlighted);
-        assert!(!filtered[8].as_ref().expect("a day").highlighted);
-        assert!(
-            !filtered[7].as_ref().expect("a day").highlighted,
-            "a day without training is not emphasized"
-        );
     }
 
     #[wasm_bindgen_test]
@@ -449,7 +416,6 @@ mod tests {
         let cell = CalendarCell {
             date: JstDate::new(2026, 11, 1).unwrap(),
             body_parts: vec![BodyPart::Back, BodyPart::BicepsForearm],
-            highlighted: true,
             selected: false,
             today: false,
             future: false,
@@ -615,10 +581,6 @@ mod tests {
     }
 
     fn month_view() -> CalendarMonth {
-        month_view_with(None)
-    }
-
-    fn month_view_with(part: Option<BodyPart>) -> CalendarMonth {
         let month = JstDate::new(2026, 11, 1).unwrap().month_range();
         warrior_core::calendar::month_view(
             month,
@@ -632,7 +594,6 @@ mod tests {
                     body_parts: vec![BodyPart::Legs],
                 },
             ],
-            part,
         )
     }
 

@@ -44,6 +44,7 @@ WebAuthn の検証は、`../../../brewbook` の `webauthn`、`cbor`、`cose`、`
 登録とログインの経路は、パスキーだけの `../../../brewbook` の実装を、Google で作ったアカウントに合わせて変える。
 セッションは 32 バイトの乱数とし、D1 には SHA-256 のハッシュだけを保存する。
 セッションは HttpOnly、Secure、SameSite=Lax の Cookie で渡し、有効期限は発行から 30 日とする。
+ただし、ローカル開発の `http://localhost` では Safari が Secure の Cookie を保存しないため、`ORIGIN` が HTTP のときはセッション、OAuth の state、再認証の Cookie に Secure を付けない。本番の HTTPS では必ず付ける。
 ログアウトではセッションの行を物理削除する。
 端末トークンは利用者に紐づけたまま保持し、別のアカウントへの切り替えで破棄する。
 アカウントの削除では、セッションと端末トークンの行も削除する。

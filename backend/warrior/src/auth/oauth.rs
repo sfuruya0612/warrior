@@ -8,9 +8,9 @@ use std::collections::HashMap;
 
 use serde::Deserialize;
 use warrior_core::auth::{
-    clear_oauth_state_cookie, elevation_cookie, is_valid_opaque_token, oauth_state_cookie,
-    sha256_base64url, validate_id_token, validate_userinfo, OAUTH_STATE_COOKIE,
-    OAUTH_STATE_TTL_SECONDS,
+    clear_oauth_state_cookie_with, elevation_cookie_with, is_valid_opaque_token,
+    oauth_state_cookie_with, sha256_base64url, validate_id_token, validate_userinfo,
+    OAUTH_STATE_COOKIE, OAUTH_STATE_TTL_SECONDS,
 };
 use warrior_core::sql::{SqlStatement, SqlValue};
 use worker::{
@@ -53,7 +53,8 @@ pub async fn start(request: Request, context: RouteContext<()>) -> Result<Respon
     {
         return Ok(denied);
     }
-    begin(&context.env, "login", None).await
+    let secure = super::cookies_secure(&context.env)?;
+    begin(&context.env, "login", None, secure).await
 }
 
 /// `GET /api/auth/reauthenticate/google/start` の処理。
@@ -70,10 +71,11 @@ pub async fn start_elevation(request: Request, context: RouteContext<()>) -> Res
             "authentication required",
         ));
     };
-    begin(&env, "elevation", Some(&session.id)).await
+    let secure = super::cookies_secure(&env)?;
+    begin(&env, "elevation", Some(&session.id), secure).await
 }
 
-async fn begin(env: &Env, purpose: &str, user_id: Option<&str>) -> Result<Response> {
+async fn begin(env: &Env, purpose: &str, user_id: Option<&str>, secure: bool) -> Result<Response> {
     let client_id = var(env, "GOOGLE_CLIENT_ID")?;
     let authorize_url = var(env, "GOOGLE_OAUTH_AUTHORIZE_URL")?;
     let redirect_uri = var(env, "GOOGLE_OAUTH_REDIRECT_URI")?;
@@ -124,7 +126,7 @@ async fn begin(env: &Env, purpose: &str, user_id: Option<&str>) -> Result<Respon
     };
     let url = Url::parse(&format!("{authorize_url}{separator}{query}"))?;
     let response = redirect(url.as_str())?;
-    append_cookie(response, &oauth_state_cookie(&state))
+    append_cookie(response, &oauth_state_cookie_with(&state, secure))
 }
 
 /// `GET /api/auth/google/callback` の処理。
@@ -231,6 +233,7 @@ pub async fn callback(request: Request, context: RouteContext<()>) -> Result<Res
 
     let user_id = upsert_user(&db, &userinfo.sub, &userinfo.email, &userinfo.name).await?;
     let origin = var(&env, "ORIGIN")?;
+    let secure = super::cookies_secure(&env)?;
     if row.purpose == "elevation" {
         let Some(session) = session::resolve(&request, &env).await? else {
             return Ok(crate::error::response(
@@ -247,17 +250,17 @@ pub async fn callback(request: Request, context: RouteContext<()>) -> Result<Res
         let elevation = super::passkey::issue_elevation(&db, &session.id).await?;
         let url = Url::parse(&format!("{origin}/account"))?;
         let response = redirect(url.as_str())?;
-        let response = append_cookie(response, &elevation_cookie(&elevation))?;
-        return append_cookie(response, &clear_oauth_state_cookie());
+        let response = append_cookie(response, &elevation_cookie_with(&elevation, secure))?;
+        return append_cookie(response, &clear_oauth_state_cookie_with(secure));
     }
     let session_token = crate::random::random_token()?;
-    let session_cookie = session::create(&db, &user_id, &session_token, now).await?;
-    let terminal_cookie = crate::ownership::resolve(&db, &request, &user_id).await?;
+    let session_cookie = session::create(&db, &user_id, &session_token, now, secure).await?;
+    let terminal_cookie = crate::ownership::resolve(&db, &request, &user_id, secure).await?;
     let url = Url::parse(&format!("{origin}/"))?;
     let response = redirect(url.as_str())?;
     let response = append_cookie(response, &session_cookie)?;
     let response = append_cookie(response, &terminal_cookie)?;
-    append_cookie(response, &clear_oauth_state_cookie())
+    append_cookie(response, &clear_oauth_state_cookie_with(secure))
 }
 
 fn login_error(env: &Env) -> Result<Response> {

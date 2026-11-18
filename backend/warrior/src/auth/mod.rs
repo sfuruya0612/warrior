@@ -23,6 +23,11 @@ pub fn var(env: &Env, name: &str) -> Result<String> {
     Ok(env.var(name)?.to_string())
 }
 
+/// Cookie に Secure を付けるか。ORIGIN が HTTPS のときだけ付ける。
+pub fn cookies_secure(env: &Env) -> Result<bool> {
+    Ok(var(env, "ORIGIN")?.starts_with("https://"))
+}
+
 /// 現在の Unix 時刻 (秒)。
 pub fn now_seconds() -> i64 {
     (Date::now().as_millis() / 1000) as i64

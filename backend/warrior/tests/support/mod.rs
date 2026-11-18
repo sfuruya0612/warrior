@@ -41,6 +41,7 @@ impl DevServer {
 
     /// vars を上書きして `wrangler dev` を起動する。
     pub fn start_with_vars(port: u16, vars: &[(&str, &str)]) -> Self {
+        wait_for_port_free(port);
         let persist_dir = unique_persist_dir();
         fs::create_dir_all(&persist_dir).expect("the persistence directory must be created");
         let root = repository_root();
@@ -315,6 +316,7 @@ pub struct TestOidc {
 impl TestOidc {
     /// テスト専用の OIDC の提供者を起動し、health が 200 になるまで待つ。
     pub fn start(port: u16) -> Self {
+        wait_for_port_free(port);
         let binary =
             Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/debug/warrior_test_oidc");
         let child = Command::new(&binary)
@@ -369,6 +371,18 @@ fn stop_process_group(child: &mut Child) {
         .args(["-KILL", "--", &group.to_string()])
         .stderr(Stdio::null())
         .status();
+}
+
+fn wait_for_port_free(port: u16) {
+    let address = SocketAddr::from(([127, 0, 0, 1], port));
+    let deadline = Instant::now() + STARTUP_TIMEOUT;
+    while TcpStream::connect_timeout(&address, Duration::from_millis(100)).is_ok() {
+        assert!(
+            Instant::now() < deadline,
+            "the port {port} is still used by another process"
+        );
+        std::thread::sleep(POLL_INTERVAL);
+    }
 }
 
 fn wait_for_http(port: u16, path: &str) {

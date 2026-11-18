@@ -1,8 +1,8 @@
-//! カレンダーの月表示、部位の色、日数の集計、日の詳細、絞り込み、凡例の E2E。
+//! カレンダーの月表示、部位の色、日数の集計、日の詳細、凡例の E2E。
 //!
-//! 対応する要求: `REQ-CLD-001`、`REQ-CLD-002`、`REQ-CLD-003`、`REQ-CLD-004`、`REQ-CLD-005`、`REQ-CLD-006`。
+//! 対応する要求: `REQ-CLD-001`、`REQ-CLD-002`、`REQ-CLD-003`、`REQ-CLD-004`、`REQ-CLD-006`。
 //! 日付は画面が表示している月を基準に作り、種目とセットは D1 に置く。
-//! 月の移動、部位の色と凡例、日数の集計、日の詳細、部位の絞り込みを実ブラウザで確かめる。
+//! 月の移動、部位の色と凡例、日数の集計、日の詳細を実ブラウザで確かめる。
 
 mod support;
 
@@ -34,7 +34,7 @@ const ROW_SET: &str = "3f2504e0-4f89-41d3-9a0c-0305e82c4924";
 const BENCH_GRIP_JSON: &str = r#"{"grip":{"style":"pronated","width":"medium"}}"#;
 
 #[tokio::test]
-async fn the_calendar_navigates_filters_and_shows_the_day_detail() {
+async fn the_calendar_navigates_and_shows_the_day_detail() {
     let browser = Browser::from_env();
     let server = DevServer::start_with_vars(
         SERVER_PORT,
@@ -78,7 +78,6 @@ async fn the_calendar_navigates_filters_and_shows_the_day_detail() {
     check_the_current_month(&driver, &dates).await;
     check_the_legend(&driver, &dates).await;
     check_the_day_detail(&driver, &dates).await;
-    check_the_part_filter(&driver, &dates).await;
     check_the_month_navigation(&driver, &dates).await;
 
     if browser == Browser::Chrome {
@@ -304,81 +303,6 @@ async fn check_the_day_detail(driver: &WebDriver, dates: &FixtureDates) {
     assert_eq!(exercises[1]["sets"][0]["text"], "30 kg × 12 回");
     assert_eq!(exercises[1]["total"].as_f64(), Some(360.0));
     browser::wait_for_text(driver, "総重量").await;
-}
-
-async fn check_the_part_filter(driver: &WebDriver, dates: &FixtureDates) {
-    driver
-        .find(By::Css("[data-calendar-part=\"triceps\"]"))
-        .await
-        .expect("the triceps filter must exist")
-        .click()
-        .await
-        .expect("the triceps filter must be clickable");
-    browser::wait_for_attribute(
-        driver,
-        &day_selector(dates.second),
-        "data-calendar-highlighted",
-        "false",
-    )
-    .await;
-    assert_eq!(
-        browser::attribute(
-            driver,
-            &day_selector(dates.first),
-            "data-calendar-highlighted"
-        )
-        .await,
-        "true"
-    );
-    assert_eq!(
-        browser::attribute(
-            driver,
-            "[data-calendar-part=\"triceps\"]",
-            "data-calendar-part-days"
-        )
-        .await,
-        "1",
-        "the filter must not change the counts"
-    );
-    assert_eq!(
-        browser::attribute(
-            driver,
-            "[data-calendar-training-days]",
-            "data-calendar-training-days"
-        )
-        .await,
-        "2",
-        "the filter must not change the training days"
-    );
-    let opacity = eval_json(
-        driver,
-        &format!(
-            "const done = arguments[arguments.length - 1]; \
-             done(JSON.stringify(getComputedStyle(document.querySelector('{}')).opacity));",
-            day_selector(dates.second)
-        ),
-    )
-    .await;
-    assert_eq!(opacity.as_str(), Some("0.4"));
-
-    driver
-        .find(By::Css("[data-calendar-part=\"all\"]"))
-        .await
-        .expect("the all filter must exist")
-        .click()
-        .await
-        .expect("the all filter must be clickable");
-    browser::wait_for_attribute(
-        driver,
-        &day_selector(dates.second),
-        "data-calendar-highlighted",
-        "true",
-    )
-    .await;
-    assert_eq!(
-        browser::attribute(driver, "[data-calendar]", "data-calendar-selected-part").await,
-        ""
-    );
 }
 
 async fn check_the_month_navigation(driver: &WebDriver, dates: &FixtureDates) {

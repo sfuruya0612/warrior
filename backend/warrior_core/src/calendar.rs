@@ -27,8 +27,6 @@ pub struct CalendarDay {
     pub date: JstDate,
     /// その日に行った部位区分。
     pub body_parts: Vec<BodyPart>,
-    /// 選んだ部位を行う日か。選んでいないときはすべての日が強調される。
-    pub highlighted: bool,
 }
 
 /// 部位区分ごとの日数。
@@ -58,8 +56,6 @@ pub struct CalendarMonth {
     pub start: JstDate,
     /// 月の終了日。
     pub end: JstDate,
-    /// 絞り込んだ部位。選んでいないときは None。
-    pub part: Option<BodyPart>,
     /// トレーニングした日。トレーニングのない日は含まない。
     pub days: Vec<CalendarDay>,
     /// その月にトレーニングした日数。
@@ -222,20 +218,13 @@ pub fn summarize(days: &[TrainingDay]) -> CalendarMonthSummary {
     }
 }
 
-/// 月の日ごとの部位から、選んだ部位で強調した月の表示を組み立てる。
-///
-/// 絞り込みは強調だけを変え、トレーニング日数と部位区分ごとの日数を変えない。
-pub fn month_view(
-    month: JstMonth,
-    mut days: Vec<TrainingDay>,
-    part: Option<BodyPart>,
-) -> CalendarMonth {
+/// 月の日ごとの部位から、月の表示を組み立てる。
+pub fn month_view(month: JstMonth, mut days: Vec<TrainingDay>) -> CalendarMonth {
     days.sort_by_key(|day| day.date);
     let summary = summarize(&days);
     let days = days
         .into_iter()
         .map(|day| CalendarDay {
-            highlighted: part.is_none_or(|part| day.body_parts.contains(&part)),
             date: day.date,
             body_parts: day.body_parts,
         })
@@ -244,7 +233,6 @@ pub fn month_view(
         month: format!("{:04}-{:02}", month.start().year(), month.start().month()),
         start: month.start(),
         end: month.end(),
-        part,
         days,
         training_days: summary.training_days,
         body_part_days: summary.body_part_days,
@@ -430,44 +418,37 @@ mod tests {
     }
 
     #[test]
-    fn month_view_marks_only_the_selected_part() {
+    fn month_view_lists_the_days_in_order_and_keeps_the_counts() {
         let month = JstDate::new(2026, 11, 1).unwrap().month_range();
         let days = vec![
             day((2026, 11, 3), &[BodyPart::Legs]),
             day((2026, 11, 1), &[BodyPart::Chest, BodyPart::Triceps]),
         ];
-        let all = month_view(month, days.clone(), None);
-        let chest = month_view(month, days, Some(BodyPart::Chest));
+        let view = month_view(month, days);
 
-        assert_eq!(all.month, "2026-11");
-        assert_eq!(all.days.len(), 2);
-        assert_eq!(all.days[0].date, JstDate::new(2026, 11, 1).unwrap());
-        assert!(all.days.iter().all(|day| day.highlighted));
-
-        assert_eq!(chest.part, Some(BodyPart::Chest));
+        assert_eq!(view.month, "2026-11");
+        assert_eq!(view.days.len(), 2);
         assert_eq!(
-            chest.days,
+            view.days,
             vec![
                 CalendarDay {
                     date: JstDate::new(2026, 11, 1).unwrap(),
                     body_parts: vec![BodyPart::Chest, BodyPart::Triceps],
-                    highlighted: true,
                 },
                 CalendarDay {
                     date: JstDate::new(2026, 11, 3).unwrap(),
                     body_parts: vec![BodyPart::Legs],
-                    highlighted: false,
                 },
             ]
         );
-        assert_eq!(chest.training_days, all.training_days);
-        assert_eq!(chest.body_part_days, all.body_part_days);
+        assert_eq!(view.training_days, 2);
+        assert_eq!(view.body_part_days[0], count(BodyPart::Chest, 1));
     }
 
     #[test]
     fn month_view_of_an_empty_month_has_no_days() {
         let month = JstDate::new(2026, 2, 1).unwrap().month_range();
-        let view = month_view(month, Vec::new(), Some(BodyPart::Abs));
+        let view = month_view(month, Vec::new());
         assert!(view.days.is_empty());
         assert_eq!(view.training_days, 0);
         assert_eq!(view.body_part_days.len(), 8);
@@ -482,7 +463,6 @@ mod tests {
         let view = month_view(
             month,
             vec![day((2026, 11, 1), &[BodyPart::Chest, BodyPart::Back])],
-            Some(BodyPart::Back),
         );
         let json = serde_json::to_string(&view).expect("a serializable month");
         assert_eq!(

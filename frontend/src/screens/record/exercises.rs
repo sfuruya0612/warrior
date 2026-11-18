@@ -85,7 +85,10 @@ pub(super) fn ExerciseSection(training_id: String, signals: RecordSignals) -> El
         state.selected = None;
     });
 
+    let editable_completed =
+        (signals.session)().is_some_and(|session| session.finished_at.is_some());
     let saver = use_hook(SetSaver::default);
+    saver.set_editable_completed(editable_completed);
     let completed_events = use_context::<SetCompletedEvents>();
     let action_training_id = training_id.clone();
     let on_action = EventHandler::new(move |action: SetAction| {
@@ -205,8 +208,6 @@ pub(super) fn ExerciseSection(training_id: String, signals: RecordSignals) -> El
             .position(|view| view.record.id == selected.record.id)
     });
     let view_only = (signals.view_only)();
-    let editable_completed =
-        (signals.session)().is_some_and(|session| session.finished_at.is_some());
     let training_diff = training_difference(&current_views, (previous_training)().as_ref());
     let errors = (error)();
     let load_error = errors.load;

@@ -84,7 +84,9 @@ async fn edits_and_deletes_a_past_record_and_adds_one_with_a_date() {
         .goto(format!("{origin}/calendar"))
         .await
         .expect("the calendar must open");
-    browser::click(&driver, &format!("[data-calendar-day=\"{date}\"]")).await;
+    let day = format!("[data-calendar-day=\"{date}\"]");
+    browser::wait_for_present(&driver, &day).await;
+    browser::click(&driver, &day).await;
     browser::wait_for_present(
         &driver,
         &format!("[data-calendar-training=\"{TRAINING_ID}\"]"),

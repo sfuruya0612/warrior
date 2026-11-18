@@ -209,50 +209,114 @@ pub fn validate_userinfo(value: &Value, expected_sub: &str) -> Result<UserInfo, 
 
 /// セッションの Cookie。
 pub fn session_cookie(token: &str) -> String {
+    session_cookie_with(token, true)
+}
+
+/// セッションの Cookie。HTTPS 以外のローカル開発では Secure を付けない。
+pub fn session_cookie_with(token: &str, secure: bool) -> String {
     format!(
-        "{SESSION_COOKIE}={token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age={SESSION_TTL_SECONDS}"
+        "{SESSION_COOKIE}={token}; Path=/; HttpOnly{}; SameSite=Lax; Max-Age={SESSION_TTL_SECONDS}",
+        cookie_security(secure)
     )
 }
 
 /// セッションを消す Cookie。
 pub fn clear_session_cookie() -> String {
-    format!("{SESSION_COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0")
+    clear_session_cookie_with(true)
+}
+
+/// セッションを消す Cookie。HTTPS 以外のローカル開発では Secure を付けない。
+pub fn clear_session_cookie_with(secure: bool) -> String {
+    format!(
+        "{SESSION_COOKIE}=; Path=/; HttpOnly{}; SameSite=Lax; Max-Age=0",
+        cookie_security(secure)
+    )
 }
 
 /// 端末トークンの Cookie。
 pub fn terminal_cookie(token: &str) -> String {
+    terminal_cookie_with(token, true)
+}
+
+/// 端末トークンの Cookie。HTTPS 以外のローカル開発では Secure を付けない。
+pub fn terminal_cookie_with(token: &str, secure: bool) -> String {
     format!(
-        "{TERMINAL_COOKIE}={token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age={TERMINAL_TTL_SECONDS}"
+        "{TERMINAL_COOKIE}={token}; Path=/; HttpOnly{}; SameSite=Lax; Max-Age={TERMINAL_TTL_SECONDS}",
+        cookie_security(secure)
     )
 }
 
 /// 端末トークンを消す Cookie。
 pub fn clear_terminal_cookie() -> String {
-    format!("{TERMINAL_COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0")
+    clear_terminal_cookie_with(true)
+}
+
+/// 端末トークンを消す Cookie。HTTPS 以外のローカル開発では Secure を付けない。
+pub fn clear_terminal_cookie_with(secure: bool) -> String {
+    format!(
+        "{TERMINAL_COOKIE}=; Path=/; HttpOnly{}; SameSite=Lax; Max-Age=0",
+        cookie_security(secure)
+    )
 }
 
 /// OAuth の state の Cookie。
 pub fn oauth_state_cookie(state: &str) -> String {
+    oauth_state_cookie_with(state, true)
+}
+
+/// OAuth の state の Cookie。HTTPS 以外のローカル開発では Secure を付けない。
+pub fn oauth_state_cookie_with(state: &str, secure: bool) -> String {
     format!(
-        "{OAUTH_STATE_COOKIE}={state}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age={OAUTH_STATE_TTL_SECONDS}"
+        "{OAUTH_STATE_COOKIE}={state}; Path=/; HttpOnly{}; SameSite=Lax; Max-Age={OAUTH_STATE_TTL_SECONDS}",
+        cookie_security(secure)
     )
 }
 
 /// OAuth の state を消す Cookie。
 pub fn clear_oauth_state_cookie() -> String {
-    format!("{OAUTH_STATE_COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0")
+    clear_oauth_state_cookie_with(true)
+}
+
+/// OAuth の state を消す Cookie。HTTPS 以外のローカル開発では Secure を付けない。
+pub fn clear_oauth_state_cookie_with(secure: bool) -> String {
+    format!(
+        "{OAUTH_STATE_COOKIE}=; Path=/; HttpOnly{}; SameSite=Lax; Max-Age=0",
+        cookie_security(secure)
+    )
 }
 
 /// 再認証の短命トークンの Cookie。
 pub fn elevation_cookie(token: &str) -> String {
+    elevation_cookie_with(token, true)
+}
+
+/// 再認証の短命トークンの Cookie。HTTPS 以外のローカル開発では Secure を付けない。
+pub fn elevation_cookie_with(token: &str, secure: bool) -> String {
     format!(
-        "{ELEVATION_COOKIE}={token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age={ELEVATION_TTL_SECONDS}"
+        "{ELEVATION_COOKIE}={token}; Path=/; HttpOnly{}; SameSite=Lax; Max-Age={ELEVATION_TTL_SECONDS}",
+        cookie_security(secure)
     )
 }
 
 /// 再認証の短命トークンを消す Cookie。
 pub fn clear_elevation_cookie() -> String {
-    format!("{ELEVATION_COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0")
+    clear_elevation_cookie_with(true)
+}
+
+/// 再認証の短命トークンを消す Cookie。HTTPS 以外のローカル開発では Secure を付けない。
+pub fn clear_elevation_cookie_with(secure: bool) -> String {
+    format!(
+        "{ELEVATION_COOKIE}=; Path=/; HttpOnly{}; SameSite=Lax; Max-Age=0",
+        cookie_security(secure)
+    )
+}
+
+fn cookie_security(secure: bool) -> &'static str {
+    if secure {
+        "; Secure"
+    } else {
+        ""
+    }
 }
 
 /// パスキーの名前を検証し、前後の空白を除いた名前を返す。
@@ -277,10 +341,13 @@ mod tests {
     use serde_json::json;
 
     use super::{
-        clear_oauth_state_cookie, clear_session_cookie, clear_terminal_cookie, hash_session_token,
-        hash_terminal_token, is_valid_opaque_token, oauth_state_cookie, session_cookie,
-        sha256_base64url, terminal_cookie, validate_id_token, validate_userinfo, AuthError,
-        OAUTH_STATE_COOKIE, SESSION_COOKIE, TERMINAL_COOKIE,
+        clear_elevation_cookie_with, clear_oauth_state_cookie, clear_oauth_state_cookie_with,
+        clear_session_cookie, clear_session_cookie_with, clear_terminal_cookie,
+        clear_terminal_cookie_with, elevation_cookie_with, hash_session_token, hash_terminal_token,
+        is_valid_opaque_token, oauth_state_cookie, oauth_state_cookie_with, session_cookie,
+        session_cookie_with, sha256_base64url, terminal_cookie, terminal_cookie_with,
+        validate_id_token, validate_userinfo, AuthError, OAUTH_STATE_COOKIE, SESSION_COOKIE,
+        TERMINAL_COOKIE,
     };
 
     fn jwt(payload: serde_json::Value) -> String {
@@ -366,6 +433,24 @@ mod tests {
             clear_terminal_cookie(),
             format!("{TERMINAL_COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0")
         );
+    }
+
+    #[test]
+    fn local_http_cookies_omit_the_secure_attribute() {
+        for cookie in [
+            session_cookie_with("abc", false),
+            clear_session_cookie_with(false),
+            oauth_state_cookie_with("state", false),
+            clear_oauth_state_cookie_with(false),
+            terminal_cookie_with("abc", false),
+            clear_terminal_cookie_with(false),
+            elevation_cookie_with("abc", false),
+            clear_elevation_cookie_with(false),
+        ] {
+            assert!(!cookie.contains("Secure"), "{cookie}");
+            assert!(cookie.contains("HttpOnly"), "{cookie}");
+            assert!(cookie.contains("SameSite=Lax"), "{cookie}");
+        }
     }
 
     #[test]

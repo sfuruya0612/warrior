@@ -150,6 +150,17 @@ fn a_past_records_set_edit_and_delete_change_the_history_the_calendar_and_the_be
     assert_eq!(day["total_weight_kg"].as_f64(), Some(0.0));
     assert_eq!(
         day["trainings"][0]["exercises"].as_array().map(Vec::len),
+        Some(1),
+        "the exercise remains after its last set is deleted"
+    );
+    assert_eq!(
+        day["trainings"][0]["exercises"][0]["exercise_id"],
+        BENCH_EXERCISE_ID
+    );
+    assert_eq!(
+        day["trainings"][0]["exercises"][0]["sets"]
+            .as_array()
+            .map(Vec::len),
         Some(0)
     );
 
